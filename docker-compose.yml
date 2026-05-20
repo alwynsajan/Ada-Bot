@@ -1,0 +1,10 @@
+services:
+  ada-bot:
+    build: .
+    container_name: ada-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    command: watchmedo auto-restart --patterns="*.py" --recursive -- python main.py
