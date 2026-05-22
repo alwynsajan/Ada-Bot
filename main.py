@@ -1,6 +1,7 @@
 import discord
 
 from config import DISCORD_TOKEN
+from database.db import init_db
 from services.ada_graph import run_ada_graph
 from services.llm import classify_user_intent
 
@@ -12,6 +13,7 @@ client = discord.Client(intents=intents)
 
 @client.event
 async def on_ready():
+    init_db()
     print(f"Logged in as {client.user}")
 
 
@@ -35,7 +37,7 @@ async def on_message(message):
 
         if intent == "fetch_news":
             await message.channel.send("Fetching latest AI news...")
-        else:
+        elif intent == "answer_question":
             await message.channel.send("Thinking...")
 
         result = run_ada_graph(user_message, intent)
@@ -52,13 +54,19 @@ async def on_message(message):
                     f"**{index}. {item['title']}**\n\n"
                     f"{item['summary']}\n\n"
                     f"Score: {item['score']}\n"
+                    f"Storage: {item['storage_status']}\n"
                     f"🔗 {item['url']}"
                 )
 
                 await message.channel.send(news_message)
 
         else:
-            await message.channel.send(result["response"])
+            response = result["response"]
+
+            if len(response) > 1900:
+                response = response[:1900] + "..."
+
+            await message.channel.send(response)
 
     except Exception as error:
         await message.channel.send(f"Something went wrong: {error}")
