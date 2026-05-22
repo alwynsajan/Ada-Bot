@@ -53,7 +53,7 @@ def fetch_news_node(state: AdaState):
                         chunks=embedded_chunks,
                     )
 
-                    item["storage_status"] = "Stored for RAG"
+                    item["storage_status"] = "Article Saved."
                 else:
                     item["storage_status"] = "No article text found"
 
