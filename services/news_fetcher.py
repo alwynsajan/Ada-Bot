@@ -1,5 +1,5 @@
 import requests
-
+from datetime import datetime, timezone, timedelta
 from database.db import article_exists
 
 HN_TOP_STORIES_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
@@ -25,6 +25,15 @@ def is_ai_news(title):
     return any(keyword in title for keyword in AI_KEYWORDS)
 
 
+def is_posted_today(unix_time):
+    if not unix_time:
+        return False
+
+    posted_time = datetime.fromtimestamp(unix_time, timezone.utc)
+    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=12)
+
+    return posted_time >= cutoff_time
+
 def fetch_ai_news(limit=5):
     story_ids = requests.get(HN_TOP_STORIES_URL, timeout=10).json()
 
@@ -35,6 +44,9 @@ def fetch_ai_news(limit=5):
         story = response.json()
 
         if not story or "title" not in story:
+            continue
+
+        if not is_posted_today(story.get("time")):
             continue
 
         title = story["title"]
@@ -48,7 +60,8 @@ def fetch_ai_news(limit=5):
                 {
                     "title": title,
                     "url": url,
-                    "score": story.get("score", 0),
+                    "popularity": story.get("score", 0),
+                    "posted_at": story.get("time"),
                 }
             )
 

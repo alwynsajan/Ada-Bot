@@ -1,4 +1,5 @@
 import discord
+import asyncio
 
 from config import DISCORD_TOKEN
 from database.db import init_db
@@ -9,6 +10,21 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 client = discord.Client(intents=intents)
+
+def format_popularity(score):
+    if score >= 500:
+        return "★★★★★ Extremely Popular"
+
+    if score >= 300:
+        return "★★★★☆ Very Popular"
+
+    if score >= 150:
+        return "★★★☆☆ Popular"
+
+    if score >= 75:
+        return "★★☆☆☆ Moderately Popular"
+
+    return "★☆☆☆☆ Low Popularity"
 
 
 @client.event
@@ -33,14 +49,14 @@ async def on_message(message):
         return
 
     try:
-        intent = classify_user_intent(user_message)
+        intent = await asyncio.to_thread(classify_user_intent, user_message)
 
         if intent == "fetch_news":
             await message.channel.send("Fetching latest AI news...")
         elif intent == "answer_question":
             await message.channel.send("Thinking...")
 
-        result = run_ada_graph(user_message, intent)
+        result = await asyncio.to_thread(run_ada_graph, user_message, intent)
 
         if intent == "fetch_news":
             news_items = result["news_items"]
@@ -53,7 +69,7 @@ async def on_message(message):
                 news_message = (
                     f"**{index}. {item['title']}**\n\n"
                     f"{item['summary']}\n\n"
-                    f"Score: {item['score']}\n"
+                    f"Popularity: {format_popularity(item['popularity'])}\n"
                     f"Storage: {item['storage_status']}\n"
                     f"🔗 {item['url']}"
                 )

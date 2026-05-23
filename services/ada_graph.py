@@ -28,7 +28,7 @@ def fetch_news_node(state: AdaState):
     for item in news_items:
         title = item["title"]
         url = item["url"]
-        score = item["score"]
+        popularity = item["popularity"]
 
         summary = summarize_news_item(title, url)
         item["summary"] = summary
@@ -49,7 +49,7 @@ def fetch_news_node(state: AdaState):
                         title=title,
                         url=url,
                         summary=summary,
-                        score=score,
+                        popularity=popularity,
                         chunks=embedded_chunks,
                     )
 

@@ -21,7 +21,7 @@ def init_db():
                 title TEXT NOT NULL,
                 url TEXT NOT NULL UNIQUE,
                 summary TEXT,
-                score INTEGER DEFAULT 0,
+                popularity INTEGER DEFAULT 0,
                 fetched_at TEXT NOT NULL
             )
         """)
@@ -47,7 +47,7 @@ def article_exists(url):
         return cursor.fetchone() is not None
 
 
-def save_article(title, url, summary, score, chunks):
+def save_article(title, url, summary, popularity, chunks):
     fetched_at = datetime.now(timezone.utc).isoformat()
 
     with get_connection() as conn:
@@ -55,10 +55,10 @@ def save_article(title, url, summary, score, chunks):
 
         cursor.execute(
             """
-            INSERT OR IGNORE INTO articles (title, url, summary, score, fetched_at)
+            INSERT OR IGNORE INTO articles (title, url, summary, popularity, fetched_at)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (title, url, summary, score, fetched_at),
+            (title, url, summary, popularity, fetched_at),
         )
 
         cursor.execute("SELECT id FROM articles WHERE url = ?", (url,))
