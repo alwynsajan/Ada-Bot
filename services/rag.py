@@ -5,7 +5,7 @@ from services.embeddings import generate_embedding, cosine_similarity
 from services.llm import answer_question_with_context
 
 
-def answer_from_stored_news(question, top_k=3):
+def answer_from_stored_news(question, top_k=5):
     stored_chunks = get_all_chunks()
 
     if not stored_chunks:
@@ -15,7 +15,10 @@ def answer_from_stored_news(question, top_k=3):
 
     scored_chunks = []
 
-    for chunk_text, embedding_json, title, url, fetched_at in stored_chunks:
+    for chunk_text, embedding_json, title, url, fetched_at, content_type in stored_chunks:
+
+        if content_type != "rag":
+            continue
         embedding = json.loads(embedding_json)
         score = cosine_similarity(query_embedding, embedding)
 

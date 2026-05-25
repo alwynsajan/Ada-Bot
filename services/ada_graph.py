@@ -33,41 +33,58 @@ def fetch_news_node(state: AdaState):
         summary = summarize_news_item(title, url)
         item["summary"] = summary
 
-        if not article_exists(url):
-            try:
-                article_text = scrape_article_text(url)
+        try:
+            article_text = scrape_article_text(url)
 
-                if article_text:
-                    chunks = chunk_text(article_text)
+            if article_text:
+                chunks = chunk_text(article_text)
 
-                    embedded_chunks = [
-                        (chunk, generate_embedding(chunk))
-                        for chunk in chunks
-                    ]
+                embedded_chunks = [
+                    (chunk, generate_embedding(chunk))
+                    for chunk in chunks
+                ]
 
-                    save_article(
-                        title=title,
-                        url=url,
-                        summary=summary,
-                        popularity=popularity,
-                        chunks=embedded_chunks,
-                    )
+                save_article(
+                    title=title,
+                    url=url,
+                    summary=summary,
+                    popularity=popularity,
+                    chunks=embedded_chunks,
+                    content_type="rag"
+                )
 
-                    item["storage_status"] = "Article Saved."
-                else:
-                    item["storage_status"] = "No article text found"
+                item["storage_status"] = "Saved with RAG"
 
-            except Exception:
-                item["storage_status"] = "Could not scrape article"
-        else:
-            item["storage_status"] = "Already stored"
+            else:
+                save_article(
+                    title=title,
+                    url=url,
+                    summary=summary,
+                    popularity=popularity,
+                    chunks=[],
+                    content_type="metadata"
+                )
+
+                item["storage_status"] = "Saved metadata only"
+
+        except Exception:
+            save_article(
+                title=title,
+                url=url,
+                summary=summary,
+                popularity=popularity,
+                chunks=[],
+                content_type="failed_scrape"
+            )
+
+            item["storage_status"] = "Saved (scrape failed)"
 
         processed_news.append(item)
 
     return {
         **state,
         "news_items": processed_news,
-        "response": "Fetched latest AI news.",
+        "response": "Fetched latest AI news",
     }
 
 

@@ -22,6 +22,7 @@ def init_db():
                 url TEXT NOT NULL UNIQUE,
                 summary TEXT,
                 popularity INTEGER DEFAULT 0,
+                content_type TEXT DEFAULT 'metadata',
                 fetched_at TEXT NOT NULL
             )
         """)
@@ -45,9 +46,19 @@ def article_exists(url):
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM articles WHERE url = ?", (url,))
         return cursor.fetchone() is not None
+    
+def is_rag_article(article_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT content_type FROM articles WHERE id = ?",
+            (article_id,)
+        )
+        row = cursor.fetchone()
+        return row and row[0] == "rag"
 
 
-def save_article(title, url, summary, popularity, chunks):
+def save_article(title, url, summary, popularity, chunks, content_type="metadata"):
     fetched_at = datetime.now(timezone.utc).isoformat()
 
     with get_connection() as conn:
@@ -55,10 +66,10 @@ def save_article(title, url, summary, popularity, chunks):
 
         cursor.execute(
             """
-            INSERT OR IGNORE INTO articles (title, url, summary, popularity, fetched_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO articles (title, url, summary, popularity, content_type, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (title, url, summary, popularity, fetched_at),
+            (title, url, summary, popularity, content_type, fetched_at),
         )
 
         cursor.execute("SELECT id FROM articles WHERE url = ?", (url,))
@@ -91,7 +102,8 @@ def get_all_chunks():
                 chunks.embedding,
                 articles.title,
                 articles.url,
-                articles.fetched_at
+                articles.fetched_at,
+                articles.content_type 
             FROM chunks
             JOIN articles ON chunks.article_id = articles.id
         """)
