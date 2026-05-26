@@ -4,7 +4,7 @@ from langgraph.graph import END, StateGraph
 
 from database.db import article_exists, save_article
 from services.news_fetcher import fetch_ai_news
-from services.llm import summarize_news_item, generate_general_response
+from services.llm import reconstruct_news_query, summarize_news_item, generate_general_response
 from services.scraper import scrape_article_text
 from services.embeddings import chunk_text, generate_embedding
 from services.rag import answer_from_stored_news
@@ -89,7 +89,11 @@ def fetch_news_node(state: AdaState):
 
 
 def answer_question_node(state: AdaState):
-    answer = answer_from_stored_news(state["user_message"])
+
+    reconstructed_query = reconstruct_news_query(user_message=state["user_message"],
+                                                 recent_news_items=state["news_items"])
+    
+    answer = answer_from_stored_news(reconstructed_query)
 
     return {
         **state,
@@ -144,12 +148,12 @@ graph_builder.add_edge("general_chat", END)
 ada_graph = graph_builder.compile()
 
 
-def run_ada_graph(user_message, intent):
+def run_ada_graph(user_message, intent, recent_news_items=None):
     result = ada_graph.invoke(
         {
             "user_message": user_message,
             "intent": intent,
-            "news_items": [],
+            "news_items": recent_news_items or [],
             "response": "",
         }
     )

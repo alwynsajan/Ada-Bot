@@ -57,18 +57,18 @@ def classify_user_intent(user_message):
 
 def summarize_news_item(title, url):
     prompt = f"""
-Summarise this AI news article in exactly 2 short informative sentences.
+        Summarise this AI news article in exactly 2 short informative sentences.
 
-Title: {title}
-URL: {url}
+        Title: {title}
+        URL: {url}
 
-Rules:
-- Keep it concise but meaningful.
-- Do not repeat the title.
-- Explain what happened and why it matters.
-- Do not use markdown.
-- Maximum 40 words total.
-"""
+        Rules:
+        - Keep it concise but meaningful.
+        - Do not repeat the title.
+        - Explain what happened and why it matters.
+        - Do not use markdown.
+        - Maximum 40 words total.
+        """
 
     response = client.chat.completions.create(
         model=GROQ_MODEL,
@@ -83,21 +83,21 @@ def answer_question_with_context(question, context_chunks):
     context = "\n\n".join(context_chunks)
 
     prompt = f"""
-You are Ada, an AI news assistant.
+        You are Ada, an AI news assistant.
 
-Answer the user's question using only the provided news context.
+        Answer the user's question using only the provided news context.
 
-Rules:
-- Be concise.
-- If the answer is not in the context, say you do not have enough stored news context yet.
-- Do not make unsupported claims.
+        Rules:
+        - Be concise.
+        - If the answer is not in the context, say you do not have enough stored news context yet.
+        - Do not make unsupported claims.
 
-Context:
-{context}
+        Context:
+        {context}
 
-Question:
-{question}
-"""
+        Question:
+        {question}
+        """
 
     response = client.chat.completions.create(
         model=GROQ_MODEL,
@@ -110,24 +110,77 @@ Question:
 
 def generate_general_response(user_message):
     prompt = f"""
-You are Ada, a friendly AI news Discord bot.
+        You are Ada, a friendly AI news Discord bot.
 
-Reply briefly and naturally to this casual user message.
+        Reply briefly and naturally to this casual user message.
 
-Rules:
-- Keep it under 25 words.
-- Be friendly.
-- If relevant, mention that you can fetch AI news or answer questions about stored AI news.
-- Do not use markdown.
+        Rules:
+        - Keep it under 25 words.
+        - Be friendly.
+        - If relevant, mention that you can fetch AI news or answer questions about stored AI news.
+        - Do not use markdown.
 
-User message:
-{user_message}
-"""
+        User message:
+        {user_message}
+        """
 
     response = client.chat.completions.create(
         model=GROQ_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.5,
+    )
+
+    return response.choices[0].message.content.strip()
+
+def reconstruct_news_query(user_message, recent_news_items):
+    news_context = []
+
+    for index, item in enumerate(recent_news_items, start=1):
+        news_context.append(
+            f"{index}. {item['title']}"
+        )
+
+    formatted_news = "\n".join(news_context)
+
+    prompt = f"""
+        You are Ada, an AI news assistant helping improve semantic search retrieval.
+
+        Your task:
+        Rewrite the user's query into a fully self-contained news-related query.
+
+        The user may:
+        - refer to articles using numbers
+        - refer indirectly to previous news
+        - ask follow-up questions
+        - use vague references like "that one", "article 2", "the NVIDIA news"
+
+        Use the provided recent news list to resolve references.
+
+        Rules:
+        - Preserve the original meaning.
+        - Make the query explicit and semantic-search friendly.
+        - Include the article/topic name if referenced.
+        - Do not answer the question.
+        - Do not add information not present in the news list.
+        - Return only the rewritten query.
+        - If no reconstruction is needed, return the original query.
+
+        Recent news list:
+        {formatted_news}
+
+        User query:
+        {user_message}
+        """
+
+    response = client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=0.1,
     )
 
     return response.choices[0].message.content.strip()
