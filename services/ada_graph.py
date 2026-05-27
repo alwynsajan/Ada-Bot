@@ -14,6 +14,8 @@ class AdaState(TypedDict):
     user_message: str
     intent: str
     news_items: List[Dict[str, Any]]
+    last_article_reference: Dict[str, Any] | None
+    last_topic: str | None
     response: str
 
 
@@ -90,14 +92,19 @@ def fetch_news_node(state: AdaState):
 
 def answer_question_node(state: AdaState):
 
-    reconstructed_query = reconstruct_news_query(user_message=state["user_message"],
-                                                 recent_news_items=state["news_items"])
-    
+    reconstructed_query, referenced_article = reconstruct_news_query(
+        user_message=state["user_message"],
+        recent_news_items=state["news_items"],
+        previous_topic=state.get("last_topic"),
+        previous_article=state.get("last_article_reference"),
+    )
+
     answer = answer_from_stored_news(reconstructed_query)
 
     return {
         **state,
-        "news_items": [],
+        "last_topic": reconstructed_query,
+        "last_article_reference": referenced_article,
         "response": answer,
     }
 
@@ -148,12 +155,16 @@ graph_builder.add_edge("general_chat", END)
 ada_graph = graph_builder.compile()
 
 
-def run_ada_graph(user_message, intent, recent_news_items=None):
+def run_ada_graph(user_message, intent, context_memory=None):
+
+    context_memory = context_memory or {}
     result = ada_graph.invoke(
         {
             "user_message": user_message,
             "intent": intent,
-            "news_items": recent_news_items or [],
+            "news_items": context_memory.get("news_items", []),
+            "last_article_reference": context_memory.get("last_article_reference"),
+            "last_topic": context_memory.get("last_topic"),
             "response": "",
         }
     )

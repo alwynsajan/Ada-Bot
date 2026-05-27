@@ -11,7 +11,7 @@ intents.message_content = True
 
 client = discord.Client(intents=intents)
 
-channel_news_memory = {}
+channel_context_memory = {}
 
 def format_popularity(score):
     if score >= 500:
@@ -58,18 +58,38 @@ async def on_message(message):
         elif intent == "answer_question":
             await message.channel.send("Thinking...")
 
-        recent_news_items = channel_news_memory.get(message.channel.id, [])
+        channel_context = channel_context_memory.get(
+        message.channel.id,
+        {
+            "news_items": [],
+            "last_article_reference": None,
+            "last_topic": None,
+        }
+        )
 
         result = await asyncio.to_thread(
             run_ada_graph,
             user_message,
             intent,
-            recent_news_items,
+            channel_context,
         )
+
+        channel_context_memory[message.channel.id] = {
+            "news_items": result.get(
+                "news_items",
+                channel_context.get("news_items", [])
+            ),
+            "last_article_reference": result.get("last_article_reference"),
+            "last_topic": result.get("last_topic"),
+        }
 
         if intent == "fetch_news":
             news_items = result["news_items"]
-            channel_news_memory[message.channel.id] = news_items
+            channel_context_memory[message.channel.id] = {
+            "news_items": news_items,
+            "last_article_reference": None,
+            "last_topic": None,
+}
 
             if not news_items:
                 await message.channel.send("No AI news found right now.")
