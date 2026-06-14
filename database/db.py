@@ -22,6 +22,7 @@ def init_db():
                 url TEXT NOT NULL UNIQUE,
                 summary TEXT,
                 popularity INTEGER DEFAULT 0,
+                source TEXT,
                 content_type TEXT DEFAULT 'metadata',
                 fetched_at TEXT NOT NULL
             )
@@ -58,7 +59,7 @@ def is_rag_article(article_id):
         return row and row[0] == "rag"
 
 
-def save_article(title, url, summary, popularity, chunks, content_type="metadata"):
+def save_article(title, url, summary, popularity, source, chunks, content_type="metadata"):
     fetched_at = datetime.now(timezone.utc).isoformat()
 
     with get_connection() as conn:
@@ -66,10 +67,10 @@ def save_article(title, url, summary, popularity, chunks, content_type="metadata
 
         cursor.execute(
             """
-            INSERT OR IGNORE INTO articles (title, url, summary, popularity, content_type, fetched_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR IGNORE INTO articles (title, url, summary, popularity, source, content_type, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (title, url, summary, popularity, content_type, fetched_at),
+            (title, url, summary, popularity, source, content_type, fetched_at),
         )
 
         cursor.execute("SELECT id FROM articles WHERE url = ?", (url,))

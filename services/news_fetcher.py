@@ -1,74 +1,72 @@
-import requests
-from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor
 
-from database.db import article_exists
+from services.news_sources.hacker_news import (
+    fetch_hacker_news_articles
+)
 
-HN_TOP_STORIES_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
-HN_ITEM_URL = "https://hacker-news.firebaseio.com/v0/item/{item_id}.json"
-
-AI_KEYWORDS = [
-    "ai", "artificial intelligence", "llm", "openai",
-    "machine learning", "deep learning", "neural",
-    "gpt", "claude", "gemini", "llama",
-]
-
-
-def is_ai_news(title):
-    title = title.lower()
-    return any(k in title for k in AI_KEYWORDS)
-
-
-def is_posted_within_5_days(unix_time):
-    if not unix_time:
-        return False
-
-    posted_time = datetime.fromtimestamp(unix_time, timezone.utc)
-    cutoff_time = datetime.now(timezone.utc) - timedelta(days=5)
-
-    return posted_time >= cutoff_time
+from services.news_sources.reddit import (
+    fetch_reddit_articles
+)
 
 
 def fetch_ai_news(limit=5):
-    story_ids = requests.get(HN_TOP_STORIES_URL, timeout=10).json()
 
-    ai_stories = []
+    with ThreadPoolExecutor(max_workers=2) as executor:
 
-    for story_id in story_ids[:200]:
-        story = requests.get(
-            HN_ITEM_URL.format(item_id=story_id),
-            timeout=10
-        ).json()
-
-        if not story or "title" not in story:
-            continue
-
-        title = story["title"]
-        url = story.get(
-            "url",
-            f"https://news.ycombinator.com/item?id={story_id}"
+        hn_future = executor.submit(
+            fetch_hacker_news_articles
         )
 
-        if not is_posted_within_5_days(story.get("time")):
-            continue
-
-        if not is_ai_news(title):
-            continue
-
-        # ONLY dedupe here
-        if article_exists(url):
-            continue
-
-        ai_stories.append(
-            {
-                "title": title,
-                "url": url,
-                "popularity": story.get("score", 0),
-                "posted_at": story.get("time"),
-                "storage_status": "New article",
-            }
+        reddit_future = executor.submit(
+            fetch_reddit_articles
         )
 
-        if len(ai_stories) >= limit:
+        hacker_news_articles = hn_future.result()
+        reddit_articles = reddit_future.result()
+
+        print(f"Fetched {len(hacker_news_articles)} articles from Hacker News",flush=True)
+        print(f"Fetched {len(reddit_articles)} articles from Reddit",flush=True)
+
+    source_groups = {
+        "Hacker News": hacker_news_articles,
+        "Reddit": reddit_articles,
+    }
+
+    selected_articles = []
+    remaining_articles = []
+    selected_urls = set()
+
+    # Take best article from each source first
+    for articles in source_groups.values():
+
+        if articles:
+
+            article = articles[0]
+
+            selected_articles.append(article)
+
+            selected_urls.add(article["url"])
+
+            remaining_articles.extend(
+                articles[1:]
+            )
+
+    # Rank remaining by popularity
+    remaining_articles.sort(
+        key=lambda item: item["popularity"],
+        reverse=True
+    )
+
+    for article in remaining_articles:
+
+        if len(selected_articles) >= limit:
             break
 
-    return ai_stories
+        if article["url"] in selected_urls:
+            continue
+
+        selected_articles.append(article)
+
+        selected_urls.add(article["url"])
+
+    return selected_articles[:limit]
