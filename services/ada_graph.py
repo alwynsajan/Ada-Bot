@@ -8,7 +8,7 @@ from services.llm import reconstruct_news_query, summarize_news_item, generate_g
 from services.scraper import scrape_article_text
 from services.embeddings import chunk_text, generate_embedding
 from services.rag import answer_from_stored_news
-
+from concurrent.futures import ThreadPoolExecutor
 
 class AdaState(TypedDict):
     user_message: str
@@ -22,66 +22,78 @@ class AdaState(TypedDict):
 def start_node(state: AdaState):
     return state
 
+def process_article(item):
+    title = item["title"]
+    url = item["url"]
+    popularity = item["popularity"]
 
-def fetch_news_node(state: AdaState):
-    news_items = fetch_ai_news(limit=5)
-    processed_news = []
+    summary = summarize_news_item(title, url)
+    item["summary"] = summary
 
-    for item in news_items:
-        title = item["title"]
-        url = item["url"]
-        popularity = item["popularity"]
+    try:
+        article_text = scrape_article_text(url)
 
-        summary = summarize_news_item(title, url)
-        item["summary"] = summary
+        if article_text:
+            chunks = chunk_text(article_text)
 
-        try:
-            article_text = scrape_article_text(url)
+            embedded_chunks = [
+                (chunk, generate_embedding(chunk))
+                for chunk in chunks
+            ]
 
-            if article_text:
-                chunks = chunk_text(article_text)
-
-                embedded_chunks = [
-                    (chunk, generate_embedding(chunk))
-                    for chunk in chunks
-                ]
-
-                save_article(
-                    title=title,
-                    url=url,
-                    summary=summary,
-                    popularity=popularity,
-                    chunks=embedded_chunks,
-                    content_type="rag"
-                )
-
-                item["storage_status"] = "Saved with RAG"
-
-            else:
-                save_article(
-                    title=title,
-                    url=url,
-                    summary=summary,
-                    popularity=popularity,
-                    chunks=[],
-                    content_type="metadata"
-                )
-
-                item["storage_status"] = "Saved metadata only"
-
-        except Exception:
             save_article(
                 title=title,
                 url=url,
                 summary=summary,
                 popularity=popularity,
-                chunks=[],
-                content_type="failed_scrape"
+                source=item["source"],
+                chunks=embedded_chunks,
+                content_type="rag"
             )
 
-            item["storage_status"] = "Saved (scrape failed)"
+            item["storage_status"] = "Saved with RAG"
 
-        processed_news.append(item)
+        else:
+            save_article(
+                title=title,
+                url=url,
+                summary=summary,
+                popularity=popularity,
+                source=item["source"],
+                chunks=[],
+                content_type="metadata"
+            )
+
+            item["storage_status"] = "Saved metadata only"
+
+    except Exception as e:
+
+        save_article(
+            title=title,
+            url=url,
+            summary=summary,
+            popularity=popularity,
+            source=item["source"],
+            chunks=[],
+            content_type="failed_scrape"
+        )
+
+        item["storage_status"] = f"Saved (scrape failed: {e})"
+
+    return item
+
+
+def fetch_news_node(state: AdaState):
+
+    news_items = fetch_ai_news(limit=5)
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        processed_news = list(
+            executor.map(
+                process_article,
+                news_items
+            )
+        )
 
     return {
         **state,
